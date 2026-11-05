@@ -1,13 +1,12 @@
 package com.example.encryption
 
 import org.junit.Test
-
 import org.junit.Assert.*
 
 /**
- * Example local unit test, which will execute on the development machine (host).
+ * Local unit test for the `:encryption` module executing on the JVM development host.
  *
- * See [testing documentation](http://d.android.com/tools/testing).
+ * Verifies core mathematical logic and non-Android-dependent utility functions.
  */
 class ExampleUnitTest {
     @Test

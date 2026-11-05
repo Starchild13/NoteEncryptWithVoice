@@ -1,6 +1,5 @@
 package com.example.noteencrypt.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -13,20 +12,46 @@ import androidx.compose.ui.platform.LocalContext
 
 // Dark theme color scheme configuration
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = IndigoPrimaryDark,
+    onPrimary = IndigoOnPrimaryDark,
+    primaryContainer = IndigoPrimaryContainerDark,
+    onPrimaryContainer = IndigoOnPrimaryContainerDark,
+    secondary = TealSecondaryDark,
+    onSecondary = TealOnSecondaryDark,
+    secondaryContainer = TealSecondaryContainerDark,
+    onSecondaryContainer = TealOnSecondaryContainerDark,
+    tertiary = AmberTertiaryDark,
+    onTertiary = AmberOnTertiaryDark,
+    tertiaryContainer = AmberTertiaryContainerDark,
+    onTertiaryContainer = AmberOnTertiaryContainerDark,
+    surface = SurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark
 )
 
 // Light theme color scheme configuration
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = IndigoPrimaryLight,
+    onPrimary = IndigoOnPrimaryLight,
+    primaryContainer = IndigoPrimaryContainerLight,
+    onPrimaryContainer = IndigoOnPrimaryContainerLight,
+    secondary = TealSecondaryLight,
+    onSecondary = TealOnSecondaryLight,
+    secondaryContainer = TealSecondaryContainerLight,
+    onSecondaryContainer = TealOnSecondaryContainerLight,
+    tertiary = AmberTertiaryLight,
+    onTertiary = AmberOnTertiaryLight,
+    tertiaryContainer = AmberTertiaryContainerLight,
+    onTertiaryContainer = AmberOnTertiaryContainerLight,
+    surface = SurfaceLight,
+    onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceVariantLight,
+    onSurfaceVariant = OnSurfaceVariantLight
 )
 
 /**
- * Custom Material 3 theme composable for the NoteEncrypt application.
+ * Custom Material 3 theme composable for NoteEncrypt.
  * Supports dynamic color schemes on Android 12+ (API 31+) and system dark/light theme switching.
  *
  * @param darkTheme Whether to use dark theme colors (defaults to system setting).
@@ -39,13 +64,11 @@ fun NoteEncryptTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    // Determine appropriate color scheme based on Android version and system settings
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }

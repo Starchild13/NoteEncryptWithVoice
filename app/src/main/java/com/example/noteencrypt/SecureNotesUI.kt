@@ -2,13 +2,12 @@ package com.example.noteencrypt
 
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,11 +24,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed as staggeredItemsIndexed
@@ -45,14 +45,16 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,28 +64,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.data.Note
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 // -------------------------------------------------------------------------------------
 // THEMATIC LAYOUT CARD SHAPES
+// Custom canvas path shapes for rendering note cards across 6 visual themes
 // -------------------------------------------------------------------------------------
 
+/**
+ * Custom [GenericShape] representing a classic folded notepad paper sheet.
+ * Used for rendering cards in the LIST layout theme.
+ */
 val NotepadSheetShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -100,6 +104,10 @@ val NotepadSheetShape = GenericShape { size, _ ->
     close()
 }
 
+/**
+ * Custom [GenericShape] representing a rounded brick tile block.
+ * Used for rendering cards in the GRID layout theme.
+ */
 val BrickTileShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -116,6 +124,10 @@ val BrickTileShape = GenericShape { size, _ ->
     close()
 }
 
+/**
+ * Custom [GenericShape] representing a map pin location marker geometry.
+ * Used for rendering cards in the MAP layout theme.
+ */
 val MapPinShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -132,6 +144,10 @@ val MapPinShape = GenericShape { size, _ ->
     close()
 }
 
+/**
+ * Custom [GenericShape] representing a pointed mountain peak summit silhouette.
+ * Used for rendering cards in the MOUNTAIN layout theme.
+ */
 val MountainPeakShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -150,6 +166,10 @@ val MountainPeakShape = GenericShape { size, _ ->
     close()
 }
 
+/**
+ * Custom [GenericShape] representing an undulating river stream wave contour.
+ * Used for rendering cards in the RIVER layout theme.
+ */
 val RiverStreamShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -161,6 +181,10 @@ val RiverStreamShape = GenericShape { size, _ ->
     close()
 }
 
+/**
+ * Custom [GenericShape] representing a cascading waterfall water drop silhouette.
+ * Used for rendering cards in the WATERFALL layout theme.
+ */
 val WaterfallDropShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -173,35 +197,117 @@ val WaterfallDropShape = GenericShape { size, _ ->
     close()
 }
 
+
+/**
+ * Animated voice audio waveform visualizer displaying 16 pulsating vertical bars during active audio playback.
+ *
+ * @param isPlaying Boolean indicating whether audio playback is currently active.
+ * @param modifier Layout modifier applied to the waveform container.
+ */
+@Composable
+fun VoiceWaveformVisualizer(isPlaying: Boolean, modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
+    val barHeights = List(16) { index ->
+        if (isPlaying) {
+            val animateFactor by infiniteTransition.animateFloat(
+                initialValue = 0.2f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 250 + (index % 5) * 80, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "bar_$index"
+            )
+            animateFactor
+        } else {
+            0.35f
+        }
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        barHeights.forEach { heightFactor ->
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight(heightFactor)
+                    .clip(CircleShape)
+                    .background(
+                        if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                    )
+            )
+        }
+    }
+}
+
+/**
+ * Primary dashboard UI composable for NoteEncrypt.
+ *
+ * Displays:
+ * 1. App header with title and quick navigation to Tips & Guide.
+ * 2. Layout theme selector chip row (List, Grid, Map Pin, Mountain Peak, River Stream, Waterfall Cliff).
+ * 3. Quick note creation form with inline voice memo recording.
+ * 4. Active reordering target banner when a card is selected for moving.
+ * 5. Dynamic grid/list rendering based on active [NoteLayoutMode].
+ * 6. Decrypted note content popup dialog with audio playback visualizer.
+ * 7. Voice memo recording dialog with live timer and pulsating mic indicator.
+ *
+ * @param notes Current list of [Note] entities.
+ * @param layoutMode Currently active [NoteLayoutMode] visual theme.
+ * @param onSelectLayoutMode Callback invoked when user selects a different layout mode.
+ * @param onSaveNote Callback to encrypt and persist a new note.
+ * @param onViewNote Suspend callback to decrypt note payload for viewing.
+ * @param navController Navigation controller.
+ * @param onOpenTips Callback to open the Tips & Guide screen.
+ * @param onEditNote Callback to navigate to EditScreen for editing a note.
+ * @param onDeleteNote Callback to delete a note.
+ * @param onMoveNote Callback to reorder note card position from a starting index to a target index.
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun SecureNotesUI(
+
     notes: List<Note>,
     layoutMode: NoteLayoutMode,
     onSelectLayoutMode: (NoteLayoutMode) -> Unit,
     onSaveNote: (String, String) -> Unit,
     onViewNote: suspend (String) -> String?,
     navController: NavController,
+    onOpenTips: () -> Unit = {},
     onEditNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
     onMoveNote: (fromIndex: Int, toIndex: Int) -> Unit
 ) {
+
+    val context = LocalContext.current
     var titleText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
     var decryptedNote by remember { mutableStateOf<String?>(null) }
     var showDialog by remember { mutableStateOf(false) }
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
-    // Guide and Voice Memo states
-    var showGuide by remember { mutableStateOf(false) }
+    // Voice Memo recording & playback states
     var showVoiceDialog by remember { mutableStateOf(false) }
     var isRecordingVoice by remember { mutableStateOf(false) }
     var voiceRecordSeconds by remember { mutableStateOf(0) }
     var voiceTitleText by remember { mutableStateOf("") }
-    var translatedVoiceText by remember { mutableStateOf("") }
-    var isTranslating by remember { mutableStateOf(false) }
+    var recordedFile by remember { mutableStateOf<File?>(null) }
+    var isPlayingAudio by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
+
+    // Clean up audio playback when composable leaves composition
+    DisposableEffect(Unit) {
+        onDispose {
+            VoiceMemoManager.stopPlaying()
+        }
+    }
 
     // Voice recording timer effect
     LaunchedEffect(isRecordingVoice) {
@@ -228,345 +334,455 @@ fun SecureNotesUI(
 
     val handleViewNote: (Note) -> Unit = { note ->
         coroutineScope.launch {
+            VoiceMemoManager.stopPlaying()
+            isPlayingAudio = false
             decryptedNote = onViewNote(note.encryptedNote)
             showDialog = decryptedNote != null
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // App Header with title and quick help / voice memo actions
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Scaffold(
+        modifier = Modifier.fillMaxSize()
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Column {
-                Text(
-                    text = "NoteEncrypt 🔒",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Encrypted Secure Notes & Ideas",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { showGuide = !showGuide },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(if (showGuide) "Hide Guide" else "💡 Tips", style = MaterialTheme.typography.labelMedium)
-                }
-                Button(
-                    onClick = {
-                        voiceTitleText = "Voice Memo " + SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date())
-                        translatedVoiceText = ""
-                        showVoiceDialog = true
-                    },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("🎙️ Voice Memo", style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Collapsible "How to Write Good Notes" Guide Card
-        AnimatedVisibility(visible = showGuide) {
-            ElevatedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            // App Header with title and quick help / tips action
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column {
                     Text(
-                        text = "💡 How to Write Good Notes & Jot Down Ideas",
-                        style = MaterialTheme.typography.titleSmall,
+                        text = "NoteEncrypt 🔒",
+                        style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "• Be Concise: Capture core bullet points and takeaways quickly.\n" +
-                                "• Use Clear Titles: Make retrieval instant and intuitive.\n" +
-                                "• Structure Thoughts: Group related items logically or reorder cards easily.\n" +
-                                "• Encrypt Sensitive Ideas: Protect passwords, journals, and private thoughts with AES encryption.\n" +
-                                "• Voice Memos: Record thoughts on-the-go and translate speech directly into secure encrypted notes.",
+                        text = "Encrypted Secure Notes & Ideas",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-        }
-
-        Text(
-            text = "Select Layout Theme:",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            NoteLayoutMode.entries.forEach { mode ->
-                val isSelected = mode == layoutMode
-                AssistChip(
-                    onClick = { onSelectLayoutMode(mode) },
-                    label = { Text("${mode.icon} ${mode.displayName}") },
-                    colors = if (isSelected) {
-                        AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    } else {
-                        AssistChipDefaults.assistChipColors()
-                    }
-                )
-            }
-        }
-
-        // Quick Note Creator
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                TextField(
-                    value = titleText,
-                    onValueChange = { titleText = it },
-                    label = { Text("Note Title") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    singleLine = true
-                )
-
-                TextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
-                    label = { Text("Enter Note Content to Encrypt") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    singleLine = false,
-                    maxLines = 3
-                )
-
-                Button(
-                    onClick = {
-                        if (noteText.isNotBlank()) {
-                            onSaveNote(titleText, noteText)
-                            titleText = ""
-                            noteText = ""
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                OutlinedButton(
+                    onClick = onOpenTips,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(text = "Encrypt & Save Secure Note 🔒")
+                    Text("💡 Tips Screen", style = MaterialTheme.typography.labelMedium)
                 }
             }
-        }
 
-        if (selectedIndex != null && selectedIndex!! in notes.indices) {
-            val selectedTitle = notes[selectedIndex!!].title
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(8.dp),
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Select Layout Theme:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🎯 Moving '$selectedTitle'. Tap target card to place.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    OutlinedButton(
-                        onClick = { selectedIndex = null },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text("Cancel", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
-        }
-
-        Text(
-            text = "Saved Notes (${layoutMode.icon} ${layoutMode.displayName} Layout):",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
-
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            when (layoutMode) {
-                NoteLayoutMode.LIST -> RenderListLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
-                NoteLayoutMode.GRID -> RenderGridLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
-                NoteLayoutMode.MAP -> RenderMapLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
-                NoteLayoutMode.MOUNTAIN -> RenderMountainLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
-                NoteLayoutMode.RIVER -> RenderRiverLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
-                NoteLayoutMode.WATERFALL -> RenderWaterfallLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
-            }
-        }
-
-        // Decrypted Note Dialog
-        if (showDialog && decryptedNote != null) {
-            AlertDialog(
-                onDismissRequest = { showDialog = false },
-                title = { Text("🔓 Decrypted Note Content") },
-                text = { Text(decryptedNote!!) },
-                confirmButton = {
-                    Button(onClick = { showDialog = false }) {
-                        Text("Close")
-                    }
-                }
-            )
-        }
-
-        // Voice Memo Recording & Transcription Dialog
-        if (showVoiceDialog) {
-            AlertDialog(
-                onDismissRequest = {
-                    if (!isRecordingVoice) showVoiceDialog = false
-                },
-                title = { Text("🎙️ Voice Memo & Speech Translation") },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        TextField(
-                            value = voiceTitleText,
-                            onValueChange = { voiceTitleText = it },
-                            label = { Text("Voice Memo Title") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp),
-                            singleLine = true
-                        )
-
-                        if (isRecordingVoice) {
-                            val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-                            val pulseAlpha by infiniteTransition.animateFloat(
-                                initialValue = 0.3f,
-                                targetValue = 1f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(600),
-                                    repeatMode = RepeatMode.Reverse
-                                ),
-                                label = "alpha"
+                NoteLayoutMode.entries.forEach { mode ->
+                    val isSelected = mode == layoutMode
+                    AssistChip(
+                        onClick = { onSelectLayoutMode(mode) },
+                        label = { Text("${mode.icon} ${mode.displayName}") },
+                        colors = if (isSelected) {
+                            AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Red.copy(alpha = pulseAlpha)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = String.format(Locale.getDefault(), "%02d:%02d", voiceRecordSeconds / 60, voiceRecordSeconds % 60),
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("Recording voice memo... Speak your ideas clearly.", style = MaterialTheme.typography.bodySmall)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = {
-                                    isRecordingVoice = false
-                                    isTranslating = true
-                                    coroutineScope.launch {
-                                        delay(1500L) // Simulate speech-to-text translation processing
-                                        translatedVoiceText = "Voice transcription: Ideas captured at " +
-                                                SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date()) +
-                                                ". This voice memo was recorded, translated to text, and ready for secure encryption."
-                                        isTranslating = false
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text("Stop Recording")
-                            }
-                        } else if (isTranslating) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(100.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator()
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("Translating voice audio to text...", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
                         } else {
-                            if (translatedVoiceText.isBlank()) {
-                                Button(
-                                    onClick = { isRecordingVoice = true },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Start Recording Voice Memo")
+                            AssistChipDefaults.assistChipColors()
+                        }
+                    )
+                }
+            }
+
+            // Quick Note Creator
+            ElevatedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "✍️ Create Note",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    TextField(
+                        value = titleText,
+                        onValueChange = { titleText = it },
+                        label = { Text("Note Title") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        singleLine = true
+                    )
+
+                    TextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Enter Note Content to Encrypt") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        singleLine = false,
+                        maxLines = 3
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (noteText.isNotBlank()) {
+                                    onSaveNote(titleText, noteText)
+                                    titleText = ""
+                                    noteText = ""
                                 }
-                            } else {
-                                TextField(
-                                    value = translatedVoiceText,
-                                    onValueChange = { translatedVoiceText = it },
-                                    label = { Text("Translated Text") },
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = "🔒 Encrypt & Save", style = MaterialTheme.typography.labelMedium)
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                voiceTitleText = if (titleText.isNotBlank()) titleText else "Voice Note " + SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date())
+                                recordedFile = null
+                                showVoiceDialog = true
+                            }
+                        ) {
+                            Text("🎙️ Record Voice", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+
+            if (selectedIndex != null && selectedIndex!! in notes.indices) {
+                val selectedTitle = notes[selectedIndex!!].title
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🎯 Moving '$selectedTitle'. Tap target card to place.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        OutlinedButton(
+                            onClick = { selectedIndex = null },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text("Cancel", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
+            Text(
+                text = "Saved Notes (${layoutMode.icon} ${layoutMode.displayName} Layout):",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when (layoutMode) {
+                    NoteLayoutMode.LIST -> RenderListLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
+                    NoteLayoutMode.GRID -> RenderGridLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
+                    NoteLayoutMode.MAP -> RenderMapLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
+                    NoteLayoutMode.MOUNTAIN -> RenderMountainLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
+                    NoteLayoutMode.RIVER -> RenderRiverLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
+                    NoteLayoutMode.WATERFALL -> RenderWaterfallLayout(notes, selectedIndex, handleCardClick, onEditNote, handleViewNote, onDeleteNote)
+                }
+            }
+
+            // Decrypted Note View / Audio Player Dialog
+            if (showDialog && decryptedNote != null) {
+                val voicePayload = remember(decryptedNote) { VoiceMemoPayload.parse(decryptedNote!!) }
+
+                AlertDialog(
+                    onDismissRequest = {
+                        VoiceMemoManager.stopPlaying()
+                        isPlayingAudio = false
+                        showDialog = false
+                    },
+                    title = {
+                        Text(if (voicePayload.isVoiceMemo) "🎙️ Encrypted Voice Memo" else "🔓 Decrypted Note Content")
+                    },
+                    text = {
+                        if (voicePayload.isVoiceMemo) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(140.dp),
-                                    singleLine = false
-                                )
+                                        .padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = voicePayload.title.ifBlank { "Voice Note" },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    AssistChip(
+                                        onClick = {},
+                                        label = {
+                                            val minutes = voicePayload.durationSeconds / 60
+                                            val seconds = voicePayload.durationSeconds % 60
+                                            Text(
+                                                "⏱️ %02d:%02d".format(minutes, seconds),
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        },
+                                        colors = AssistChipDefaults.assistChipColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    )
+                                }
+
                                 Spacer(modifier = Modifier.height(8.dp))
+                                VoiceWaveformVisualizer(isPlaying = isPlayingAudio)
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 Button(
                                     onClick = {
-                                        if (translatedVoiceText.isNotBlank()) {
-                                            onSaveNote(voiceTitleText, translatedVoiceText)
-                                            showVoiceDialog = false
+                                        if (isPlayingAudio) {
+                                            VoiceMemoManager.pausePlaying()
+                                            isPlayingAudio = false
+                                        } else {
+                                            val started = VoiceMemoManager.startPlaying(voicePayload.audioPath) {
+                                                isPlayingAudio = false
+                                            }
+                                            if (started) isPlayingAudio = true
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Encrypt & Save Voice Memo 🔒")
+                                    Text(if (isPlayingAudio) "⏸ Pause Audio" else "▶ Play Recording")
+                                }
+
+                                if (voicePayload.description.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = voicePayload.description,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(decryptedNote!!)
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                VoiceMemoManager.stopPlaying()
+                                isPlayingAudio = false
+                                showDialog = false
+                            }
+                        ) {
+                            Text("Close")
+                        }
+                    }
+                )
+            }
+
+            // Voice Memo Recording Dialog
+            if (showVoiceDialog) {
+                AlertDialog(
+                    onDismissRequest = {
+                        if (!isRecordingVoice) {
+                            VoiceMemoManager.stopPlaying()
+                            isPlayingAudio = false
+                            showVoiceDialog = false
+                        }
+                    },
+                    title = { Text("🎙️ Voice Memo Recording") },
+                    text = {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            TextField(
+                                value = voiceTitleText,
+                                onValueChange = { voiceTitleText = it },
+                                label = { Text("Voice Memo Title") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                singleLine = true
+                            )
+
+                            if (isRecordingVoice) {
+                                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                                val pulseAlpha by infiniteTransition.animateFloat(
+                                    initialValue = 0.3f,
+                                    targetValue = 1f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(600),
+                                        repeatMode = RepeatMode.Reverse
+                                    ),
+                                    label = "alpha"
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Red.copy(alpha = pulseAlpha)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    val mins = voiceRecordSeconds / 60
+                                    val secs = voiceRecordSeconds % 60
+                                    Text(
+                                        text = "%02d:%02d".format(mins, secs),
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("Recording voice memo... Speak into your microphone.", style = MaterialTheme.typography.bodySmall)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = {
+                                        isRecordingVoice = false
+                                        recordedFile = VoiceMemoManager.stopRecording()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("Stop Recording ⏹")
+                                }
+                            } else {
+                                if (recordedFile == null) {
+                                    Button(
+                                        onClick = {
+                                            voiceRecordSeconds = 0
+                                            recordedFile = VoiceMemoManager.startRecording(context)
+                                            isRecordingVoice = true
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Start Recording Voice Memo 🎙️")
+                                    }
+                                } else {
+                                    // Voice Memo Recorded Preview State
+                                    ElevatedCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp),
+                                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "🎙️ Voice Recording Ready",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            VoiceWaveformVisualizer(isPlaying = isPlayingAudio)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            val durationMins = voiceRecordSeconds / 60
+                                            val durationSecs = voiceRecordSeconds % 60
+                                            Text(
+                                                text = "Duration: %02d:%02d".format(durationMins, durationSecs),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            Button(
+                                                onClick = {
+                                                    if (isPlayingAudio) {
+                                                        VoiceMemoManager.pausePlaying()
+                                                        isPlayingAudio = false
+                                                    } else {
+                                                        val started = VoiceMemoManager.startPlaying(recordedFile!!.absolutePath) {
+                                                            isPlayingAudio = false
+                                                        }
+                                                        if (started) isPlayingAudio = true
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(if (isPlayingAudio) "⏸ Pause Audio" else "▶ Play Recording")
+                                            }
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val filePath = recordedFile?.absolutePath ?: ""
+                                            val payload = VoiceMemoPayload.format(filePath, voiceRecordSeconds, voiceTitleText)
+                                            onSaveNote(voiceTitleText, payload)
+                                            VoiceMemoManager.stopPlaying()
+                                            isPlayingAudio = false
+                                            recordedFile = null
+                                            showVoiceDialog = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Encrypt & Save Voice Memo 🔒")
+                                    }
                                 }
                             }
                         }
-                    }
-                },
-                confirmButton = {
-                    if (!isRecordingVoice && !isTranslating) {
-                        Button(onClick = { showVoiceDialog = false }) {
-                            Text("Cancel")
+                    },
+                    confirmButton = {
+                        if (!isRecordingVoice) {
+                            OutlinedButton(
+                                onClick = {
+                                    VoiceMemoManager.stopPlaying()
+                                    isPlayingAudio = false
+                                    recordedFile = null
+                                    showVoiceDialog = false
+                                }
+                            ) {
+                                Text("Cancel")
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         }
     }
 }
 
+/**
+ * Renders the LIST layout theme using a vertical [LazyColumn] of notepad sheet cards.
+ */
 @Composable
 private fun RenderListLayout(
     notes: List<Note>,
@@ -576,15 +792,12 @@ private fun RenderListLayout(
     onViewNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(notes) { index, note ->
+            val isSelected = selectedIndex == index
             NotepadCard(
                 noteTitle = note.title,
-                shape = NotepadSheetShape,
-                isSelected = index == selectedIndex,
+                isSelected = isSelected,
                 onCardClick = { onSelectCard(index) },
                 onEdit = { onEditNote(note) },
                 onView = { onViewNote(note) },
@@ -594,6 +807,9 @@ private fun RenderListLayout(
     }
 }
 
+/**
+ * Renders the GRID layout theme using a 2-column [LazyVerticalGrid] of brick tile cards.
+ */
 @Composable
 private fun RenderGridLayout(
     notes: List<Note>,
@@ -605,24 +821,41 @@ private fun RenderGridLayout(
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        modifier = Modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         gridItemsIndexed(notes) { index, note ->
-            NotepadCard(
-                noteTitle = note.title,
+            val isSelected = selectedIndex == index
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent, BrickTileShape)
+                    .clickable { onSelectCard(index) },
                 shape = BrickTileShape,
-                isSelected = index == selectedIndex,
-                onCardClick = { onSelectCard(index) },
-                onEdit = { onEditNote(note) },
-                onView = { onViewNote(note) },
-                onDelete = { onDeleteNote(note) }
-            )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (isSelected) "🎯 ${note.title}" else "🧱 ${note.title}",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2
+                    )
+                    ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
+                }
+            }
         }
     }
 }
 
+/**
+ * Renders the MAP layout theme using map-pin shaped note cards.
+ */
 @Composable
 private fun RenderMapLayout(
     notes: List<Note>,
@@ -632,78 +865,41 @@ private fun RenderMapLayout(
     onViewNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFEAF5EA))
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 12.dp)
-        ) {
-            itemsIndexed(notes) { index, note ->
-                val isSelected = index == selectedIndex
-                val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF8B5A2B)
-                val isLeft = index % 2 == 0
-                val startPad = if (isLeft) 16.dp else 90.dp
-                val endPad = if (isLeft) 90.dp else 16.dp
-
-                Box(
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        itemsIndexed(notes) { index, note ->
+            val isSelected = selectedIndex == index
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent, MapPinShape)
+                    .clickable { onSelectCard(index) },
+                shape = MapPinShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                        .padding(vertical = 6.dp)
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val w = size.width
-                        val h = size.height
-                        val roadWidth = 42.dp.toPx()
-                        val dashEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 14f), 0f)
-                        val startX = if (index % 2 == 0) w * 0.75f else w * 0.25f
-                        val endX = if (index % 2 == 0) w * 0.25f else w * 0.75f
-                        val path = Path().apply {
-                            moveTo(startX, 0f)
-                            cubicTo(startX, h * 0.5f, endX, h * 0.5f, endX, h)
-                        }
-                        drawPath(path, Color(0xFF78909C), style = Stroke(width = roadWidth + 8.dp.toPx(), cap = StrokeCap.Round))
-                        drawPath(path, Color(0xFF37474F), style = Stroke(width = roadWidth, cap = StrokeCap.Round))
-                        drawPath(path, Color(0xFFFFD54F), style = Stroke(width = 4.dp.toPx(), pathEffect = dashEffect, cap = StrokeCap.Round))
-                    }
-
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight()
-                            .padding(start = startPad, end = endPad)
-                            .border(if (isSelected) 3.dp else 1.dp, borderColor, MapPinShape)
-                            .clickable { onSelectCard(index) },
-                        shape = MapPinShape,
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8DC)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 5.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 26.dp, bottom = 36.dp, start = 12.dp, end = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Top
-                        ) {
-                            Text(
-                                text = if (isSelected) "🎯 ${note.title}" else "📍 ${note.title}",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2E8B57),
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
-                        }
-                    }
+                    Text(
+                        text = if (isSelected) "🎯 ${note.title}" else "📍 ${note.title}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 2
+                    )
+                    ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
                 }
             }
         }
     }
 }
 
+/**
+ * Renders the MOUNTAIN layout theme using mountain-peak styled note cards.
+ */
 @Composable
 private fun RenderMountainLayout(
     notes: List<Note>,
@@ -713,44 +909,41 @@ private fun RenderMountainLayout(
     onViewNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         itemsIndexed(notes) { index, note ->
-            val total = notes.size
-            val progress = if (total <= 1) 0f else index.toFloat() / (total - 1).toFloat()
-            val horizontalPadding = ((1f - progress) * 44f).dp
-            val isSelected = index == selectedIndex
-            val brush = if (isSelected) Brush.linearGradient(colors = listOf(Color(0xFFE55D87), Color(0xFF5FC3E4))) else Brush.linearGradient(colors = listOf(Color(0xFF2C3E50), Color(0xFF4CA1AF)))
-
+            val isSelected = selectedIndex == index
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = horizontalPadding)
-                    .border(if (isSelected) 3.dp else 0.dp, Color(0xFFFFD700), MountainPeakShape)
+                    .height(170.dp)
+                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent, MountainPeakShape)
                     .clickable { onSelectCard(index) },
-                elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 6.dp),
-                shape = MountainPeakShape
+                shape = MountainPeakShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
             ) {
-                Box(modifier = Modifier.background(brush).padding(top = 28.dp, bottom = 14.dp, start = 14.dp, end = 14.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = note.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 28.dp, bottom = 12.dp, start = 16.dp, end = 16.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (isSelected) "🎯 ${note.title}" else "⛰️ ${note.title}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        maxLines = 2
+                    )
+                    ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
                 }
             }
         }
     }
 }
 
-/** Winding River Layout - Winding blue river background with river curve and waves as note shape, structured like the map */
+/**
+ * Renders the RIVER layout theme using wave-curved cards with horizontal gradient brushes.
+ */
 @Composable
 private fun RenderRiverLayout(
     notes: List<Note>,
@@ -760,71 +953,41 @@ private fun RenderRiverLayout(
     onViewNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFE0F2F1)) // Scenic river valley terrain background
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 12.dp)
-        ) {
-            itemsIndexed(notes) { index, note ->
-                val isSelected = index == selectedIndex
-                val isLeft = index % 2 == 0
-                val startPad = if (isLeft) 16.dp else 90.dp
-                val endPad = if (isLeft) 90.dp else 16.dp
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        itemsIndexed(notes) { index, note ->
+            val isSelected = selectedIndex == index
+            val waveBrush = Brush.horizontalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.primaryContainer,
+                    MaterialTheme.colorScheme.secondaryContainer
+                )
+            )
 
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent, RiverStreamShape)
+                    .clickable { onSelectCard(index) },
+                shape = RiverStreamShape
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                        .padding(vertical = 6.dp)
+                        .background(waveBrush)
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
                 ) {
-                    // Winding river canvas path curving and waving across note cards
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val w = size.width
-                        val h = size.height
-                        val riverWidth = 52.dp.toPx()
-                        val rippleEffect = PathEffect.dashPathEffect(floatArrayOf(24f, 18f), 0f)
-                        val startX = if (index % 2 == 0) w * 0.75f else w * 0.25f
-                        val endX = if (index % 2 == 0) w * 0.25f else w * 0.75f
-                        val path = Path().apply {
-                            moveTo(startX, 0f)
-                            cubicTo(startX, h * 0.5f, endX, h * 0.5f, endX, h)
-                        }
-                        drawPath(path, Color(0xFF80DEEA), style = Stroke(width = riverWidth + 14.dp.toPx(), cap = StrokeCap.Round))
-                        drawPath(path, Color(0xFF0288D1), style = Stroke(width = riverWidth, cap = StrokeCap.Round))
-                        drawPath(path, Color(0xFFE0F7FA), style = Stroke(width = 4.dp.toPx(), pathEffect = rippleEffect, cap = StrokeCap.Round))
-                    }
-
-                    val riverGradient = if (isSelected) Brush.verticalGradient(colors = listOf(Color(0xFFFF512F), Color(0xFFDD2476))) else Brush.verticalGradient(colors = listOf(Color(0xFF00C6FF), Color(0xFF0072FF)))
-
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight()
-                            .padding(start = startPad, end = endPad)
-                            .border(if (isSelected) 3.dp else 1.dp, Color.White, RiverStreamShape)
-                            .clickable { onSelectCard(index) },
-                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 6.dp),
-                        shape = RiverStreamShape
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Box(modifier = Modifier.background(riverGradient).padding(top = 22.dp, bottom = 22.dp, start = 14.dp, end = 14.dp)) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.SpaceBetween,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = if (isSelected) "🎯 ${note.title}" else "🌊 ${note.title}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                                ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
-                            }
-                        }
+                        Text(
+                            text = if (isSelected) "🎯 ${note.title}" else "🌊 ${note.title}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 2
+                        )
+                        ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
                     }
                 }
             }
@@ -832,7 +995,9 @@ private fun RenderRiverLayout(
     }
 }
 
-/** Rocky Cliff Waterfall Layout - Dark rocky cliff with cascading streams of water and water drop notes coming down */
+/**
+ * Renders the WATERFALL layout theme using a staggered vertical grid of waterdrop-shaped cards.
+ */
 @Composable
 private fun RenderWaterfallLayout(
     notes: List<Note>,
@@ -842,78 +1007,42 @@ private fun RenderWaterfallLayout(
     onViewNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF263238)) // Dark rocky cliff background
+    LazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Fixed(2),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalItemSpacing = 8.dp
     ) {
-        // Rocky cliff texture and cascading streams of water coming down
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            // Draw rocky cliff strata lines
-            for (i in 0..16) {
-                val y = (h / 16f) * i
-                drawLine(
-                    color = Color(0xFF37474F),
-                    start = Offset(0f, y),
-                    end = Offset(w, y + 16f),
-                    strokeWidth = 2.dp.toPx()
+        staggeredItemsIndexed(notes) { index, note ->
+            val isSelected = selectedIndex == index
+            val waterfallBrush = Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.secondary,
+                    MaterialTheme.colorScheme.primary
                 )
-            }
-            // Cascading streams of water coming down the cliff
-            val streamWidth = 10.dp.toPx()
-            val splashDash = PathEffect.dashPathEffect(floatArrayOf(28f, 18f), 0f)
-            val streamPositions = listOf(0.15f, 0.35f, 0.5f, 0.7f, 0.85f)
-            for (pos in streamPositions) {
-                val x = w * pos
-                val path = Path().apply {
-                    moveTo(x, 0f)
-                    cubicTo(x - 10f, h * 0.3f, x + 10f, h * 0.7f, x, h)
-                }
-                drawPath(path, Color(0x6680DEEA), style = Stroke(width = streamWidth, cap = StrokeCap.Round))
-                drawPath(path, Color(0xCCFFFFFF), style = Stroke(width = 3.dp.toPx(), pathEffect = splashDash, cap = StrokeCap.Round))
-            }
-        }
+            )
+            val minHeight = if (index % 2 == 0) 190.dp else 230.dp
 
-        LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalItemSpacing = 14.dp,
-            contentPadding = PaddingValues(10.dp)
-        ) {
-            staggeredItemsIndexed(notes) { index, note ->
-                val isSelected = index == selectedIndex
-                val waterfallBrush = if (isSelected) Brush.verticalGradient(colors = listOf(Color(0xFFF857A6), Color(0xFFFF5858))) else Brush.verticalGradient(colors = listOf(Color(0xFF00E5FF), Color(0xFF0083B0)))
-                val isEvenColumn = index % 2 == 0
-                val topMargin = if (isEvenColumn) 0.dp else 32.dp
-                val minHeight = if (index % 2 == 0) 190.dp else 230.dp
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(minHeight)
-                        .padding(top = topMargin)
-                        .border(if (isSelected) 3.dp else 1.dp, Color(0xFFE0F7FA), WaterfallDropShape)
-                        .clickable { onSelectCard(index) },
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 6.dp),
-                    shape = WaterfallDropShape
-                ) {
-                    Box(modifier = Modifier.background(waterfallBrush).padding(top = 28.dp, bottom = 20.dp, start = 12.dp, end = 12.dp)) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = if (isSelected) "🎯 ${note.title}" else "💧 ${note.title}",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White,
-                                maxLines = 2
-                            )
-                            ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
-                        }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(minHeight)
+                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color.White else Color.Transparent, WaterfallDropShape)
+                    .clickable { onSelectCard(index) },
+                shape = WaterfallDropShape
+            ) {
+                Box(modifier = Modifier.background(waterfallBrush).padding(top = 28.dp, bottom = 20.dp, start = 12.dp, end = 12.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (isSelected) "🎯 ${note.title}" else "💧 ${note.title}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            maxLines = 2
+                        )
+                        ActionRow(isSelected, { onSelectCard(index) }, { onEditNote(note) }, { onViewNote(note) }, { onDeleteNote(note) })
                     }
                 }
             }
@@ -925,6 +1054,15 @@ private fun RenderWaterfallLayout(
 // SHARED UI HELPER COMPONENTS
 // -------------------------------------------------------------------------------------
 
+/**
+ * Shared horizontal row of action buttons (Move, Edit, View, Delete) displayed on every note card.
+ *
+ * @param isSelected Boolean indicating whether this card is currently selected for reordering.
+ * @param onSelectMove Callback invoked to select/target card for positioning.
+ * @param onEdit Callback invoked to open the Edit screen for this note.
+ * @param onView Callback invoked to decrypt and view this note payload in a popup dialog.
+ * @param onDelete Callback invoked to remove this note from Room storage.
+ */
 @Composable
 private fun ActionRow(
     isSelected: Boolean,
@@ -970,6 +1108,18 @@ private fun ActionRow(
     }
 }
 
+/**
+ * Standard notepad sheet card component rendering a note title and action row.
+ *
+ * @param noteTitle Title string of the note.
+ * @param shape Shape geometry used for card outline.
+ * @param colors Card container and content colors.
+ * @param isSelected Selection status for reordering.
+ * @param onCardClick Card tap handler.
+ * @param onEdit Edit action handler.
+ * @param onView View action handler.
+ * @param onDelete Delete action handler.
+ */
 @Composable
 fun NotepadCard(
     noteTitle: String,
@@ -992,26 +1142,19 @@ fun NotepadCard(
         colors = colors,
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 6.dp else 2.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = noteTitle,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                if (isSelected) {
-                    Text(
-                        text = "🎯 Selected",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = if (isSelected) "🎯 $noteTitle" else "📝 $noteTitle",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
             ActionRow(isSelected, onCardClick, onEdit, onView, onDelete)
         }
     }
 }
+

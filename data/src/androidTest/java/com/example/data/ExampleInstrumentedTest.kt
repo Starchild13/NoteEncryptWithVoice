@@ -9,12 +9,16 @@ import org.junit.runner.RunWith
 import org.junit.Assert.*
 
 /**
- * Instrumented test, which will execute on an Android device.
+ * Instrumented test executing on a physical Android device or emulator for the `:data` module.
  *
- * See [testing documentation](http://d.android.com/tools/testing).
+ * Verifies Room database instantiation and package context binding.
  */
 @RunWith(AndroidJUnit4::class)
 class ExampleInstrumentedTest {
+
+    /**
+     * Verifies that the target application context matches the expected package name.
+     */
     @Test
     fun useAppContext() {
         // Context of the app under test.

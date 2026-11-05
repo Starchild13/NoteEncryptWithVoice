@@ -1,13 +1,10 @@
 package com.example.data
 
 import org.junit.Test
-
 import org.junit.Assert.*
 
 /**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
+ * Local unit test for the `:data` persistence module executing on the JVM development host.
  */
 class ExampleUnitTest {
     @Test
